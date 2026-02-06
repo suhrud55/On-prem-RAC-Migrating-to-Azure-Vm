@@ -1,1 +1,124 @@
+name: Oracle Migration Infrastructure & DB Prep
 
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+jobs:
+  oracle-migration:
+    runs-on: ubuntu-latest
+
+    steps:
+    # ---------------- STEP 1 ----------------
+    - name: Checkout Terraform Repository
+      uses: actions/checkout@v4
+
+    # ---------------- STEP 2 ----------------
+    - name: Setup Terraform
+      uses: hashicorp/setup-terraform@v3
+      with:
+        terraform_version: 1.6.6
+
+    - name: Terraform Init
+      working-directory: terraform
+      run: terraform init
+
+    - name: Terraform Validate
+      working-directory: terraform
+      run: terraform validate
+
+    - name: Terraform Apply (Create Azure Resources)
+      working-directory: terraform
+      env:
+        ARM_CLIENT_ID: ${{ secrets.ARM_CLIENT_ID }}
+        ARM_CLIENT_SECRET: ${{ secrets.ARM_CLIENT_SECRET }}
+        ARM_SUBSCRIPTION_ID: ${{ secrets.ARM_SUBSCRIPTION_ID }}
+        ARM_TENANT_ID: ${{ secrets.ARM_TENANT_ID }}
+      run: terraform apply -auto-approve
+
+    # ----------------  STEP-3 ----------------
+    - name: Fetch VM Private IPs from Terraform Outputs
+      working-directory: terraform
+      run: |
+        PRIMARY_VM_IP=$(terraform output -raw primary_vm_private_ip)
+        STANDBY_VM_IP=$(terraform output -raw standby_vm_private_ip)
+
+        echo "PRIMARY_VM_IP=$PRIMARY_VM_IP" >> $GITHUB_ENV
+        echo "STANDBY_VM_IP=$STANDBY_VM_IP" >> $GITHUB_ENV
+
+    # ---------------- STEP 4 ----------------
+    - name: Wait for Oracle DB Installation (Cloud-init)
+      run: |
+        echo "Waiting for Oracle DB and GoldenGate installation to complete..."
+        sleep 600
+
+    # ---------------- STEP 5 ----------------
+    - name: Create GoldenGate DB User on Primary VM
+      env:
+        GG_PASSWORD: ${{ secrets.GG_DB_PASSWORD }}
+      run: |
+        ssh -o StrictHostKeyChecking=no oracleadmin@$PRIMARY_VM_IP << EOF
+        sudo su - oracle
+        sqlplus / as sysdba << SQL
+        CREATE USER ggadmin IDENTIFIED BY "$GG_PASSWORD";
+        GRANT CONNECT, RESOURCE TO ggadmin;
+        GRANT ALTER SYSTEM TO ggadmin;
+        GRANT SELECT ANY DICTIONARY TO ggadmin;
+        GRANT FLASHBACK ANY TABLE TO ggadmin;
+        EXIT;
+SQL
+        EOF
+
+
+    # ---------------- STEP 6 ----------------(NOTE : first we need to check manually whether the data export and import is done properly by using duplicate data )
+    
+    - name: Import Initial Data into Azure Oracle DB
+      env:
+        TARGET_VM_IP: ${{ env.ORACLE_VM_PRIMARY_IP }}
+      run: |
+        ssh -o StrictHostKeyChecking=no oracleadmin@$TARGET_VM_IP << 'EOF'
+        sudo su - oracle << 'SQLEOF'
+        impdp system/password \
+          directory=DATA_PUMP_DIR \
+          dumpfile=full_export.dmp \
+          logfile=impdp_initial.log \
+          full=y
+        SQLEOF
+        EOF
+
+
+    
+    # ---------------- STEP 7 ----------------(extract process in RAC should be started )
+    - name: Start GoldenGate Replicat on Azure
+      env:
+        TARGET_VM_IP: ${{ env.ORACLE_VM_PRIMARY_IP }}
+      run: |
+        ssh -o StrictHostKeyChecking=no oracleadmin@$TARGET_VM_IP << 'EOF'
+        sudo su - oracle << 'GGEOF'
+        ggsci << GG
+        START REPLICAT rep1
+        INFO REPLICAT rep1
+        EXIT
+        GG
+        GGEOF
+        EOF
+        
+
+    # ---------------- STEP 8----------------
+    - name:  GoldenGate Replication status
+      env:
+        TARGET_VM_IP: ${{ env.ORACLE_VM_PRIMARY_IP }}
+      run: |
+        ssh -o StrictHostKeyChecking=no oracleadmin@$TARGET_VM_IP << 'EOF'
+        sudo su - oracle << 'GGEOF'
+        ggsci << GG
+        INFO ALL
+        LAG REPLICAT rep1
+        EXIT
+        GG
+        GGEOF
+        EOF
+
+##### After this we need to check lag in pipeline logs and do the cutover manually  ####
