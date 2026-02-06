@@ -65,12 +65,17 @@ Migration Strategy: We migrate mission-critical Oracle RAC workloads from on-pre
 replication and Active Data Guard for high availability and disaster recovery.This approach supports continuous business operations, strict 
 availability requirements, and data consistency during migration.It minimizes risk by avoiding application changes while meeting enterprise 
 performance, reliability, and compliance expectations.
+
+
 REHOST: Not used because RAC cannot be lifted directly into Azure as-is.
 Azure does not natively support Oracle RAC shared storage.
+
 REPLATFORM: Used because RAC is converted to single-instance Oracle on Azure VM with GoldenGate and ADG.
 This keeps Oracle while adapting it to Azure infrastructure safely.
+
 REPLACE: Not used because replacing Oracle with SaaS or another database impacts functionality.
 Such changes are not acceptable for this mission-critical workload.
+
 REFACTOR: Not used because application code changes increase risk and timeline.
 The business requires the same application behavior after migration
 
