@@ -80,7 +80,7 @@ REFACTOR: Not used because application code changes increase risk and timeline.
 The business requires the same application behavior after migration
 
 
-**Tools & Accelerators**
+**Tools & Accelerators** ( NOTE : in this process we are automating only in azure ... everything oracle RAC was done manually )
 
 1. Terraform and Github actions or Azure Devops reduce manual effort and human error by automating infrastructure 
 creation and repeatable deployment steps.
