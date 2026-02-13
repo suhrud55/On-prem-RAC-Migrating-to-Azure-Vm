@@ -203,14 +203,14 @@ resource "azurerm_linux_virtual_machine" "vm2" {
   #storage_account_type = "Premium_LRS"
   #create_option        = "Empty"
   #disk_size_gb         = var.disk_size_gb
-}
+#}
 
 #resource "azurerm_virtual_machine_data_disk_attachment" "attach_vm1" {
   #managed_disk_id    = azurerm_managed_disk.data_disk_vm1.id
   #virtual_machine_id = azurerm_linux_virtual_machine.vm1.id
   #lun                = 0
   #caching            = "ReadOnly"
-}
+#}
 
 
 ###################
@@ -224,12 +224,12 @@ resource "azurerm_linux_virtual_machine" "vm2" {
   #storage_account_type = "Premium_LRS"
   #create_option        = "Empty"
   #disk_size_gb         = var.disk_size_gb
-}
+#}
 
 #resource "azurerm_virtual_machine_data_disk_attachment" "attach_vm2" {
   #managed_disk_id    = azurerm_managed_disk.data_disk_vm2.id
   #virtual_machine_id = azurerm_linux_virtual_machine.vm2.id
   #lun                = 0
   #caching            = "ReadOnly"
-}
+#}
 
